@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id           Int      @id @default(autoincrement())
+  domain       String?  @unique
+  companyName  String?
+  logo         String?
+  isActive     Boolean  @default(true)
+  planId       Int?
+  createdAt    DateTime @default(now())
+
+  plan          Plan?          @relation(fields: [planId], references: [id])
+  users         User[]
+  roles         Role[]
+  subscriptions Subscription[]
+}
+
+model User {
+  id        Int    @id @default(autoincrement())
+  tenantId  Int?
+  roleId    Int?
+  name      String
+  email     String   @unique
+  phone     String?  @unique
+  password  String
+
+  roleType  UserRole @default(ADMIN)
+  isActive  Boolean  @default(true)
+  tokenVersion Int   @default(0)
+
+  profileUrl          String?
+  resetPasswordToken  String?
+  resetPasswordExp    DateTime?
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+  role   Role?   @relation(fields: [roleId], references: [id])
+
+  userPermissions UserPermission[]
+}
+
+model Plan {
+  id          Int      @id @default(autoincrement())
+  name        String
+  price       Float
+  duration    Int
+  maxUsers    Int
+  maxProducts Int
+  createdAt   DateTime @default(now())
+
+  tenants       Tenant[]
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id        Int    @id @default(autoincrement())
+  tenantId  Int
+  planId    Int
+
+  startDate DateTime
+  endDate   DateTime
+  status    SubscriptionStatus @default(ACTIVE)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  plan   Plan   @relation(fields: [planId], references: [id])
+}
+
+model Permission {
+  id     Int    @id @default(autoincrement())
+  name   String @unique
+  module String
+  action String
+
+  rolePermissions RolePermission[]
+  userPermissions UserPermission[]
+}
+
+model Role {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int?     // null = global role
+  name      String
+  isGlobal  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  rolePermissions RolePermission[]
+  users           User[]
+
+  @@unique([name, tenantId]) 
+}
+
+model RolePermission {
+  id           Int @id @default(autoincrement())
+  roleId       Int
+  permissionId Int
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([roleId, permissionId])
+}
+
+model UserPermission {
+  id           Int @id @default(autoincrement())
+  userId       Int
+  permissionId Int
+  allowed      Boolean
+
+  user       User       @relation(fields: [userId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([userId, permissionId])
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  USER
+  EMPLOYEE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
